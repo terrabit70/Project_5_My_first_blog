@@ -1,8 +1,10 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.utils import timezone
 from .models import Post, Comment
-from .forms import PostForm, CommentForm
+from .forms import PostForm, CommentForm, BracketsValidatorForm
 from django.contrib.auth.decorators import login_required
+from blog.scripts.brackets_validator import Validator as BracketsValidator
+
 
 def post_list(request):
     posts = Post.objects.filter(published_date__lte=timezone.now()).order_by('published_date')
@@ -10,7 +12,7 @@ def post_list(request):
 
 def post_detail(request, pk):
     post = get_object_or_404(Post, pk=pk)
-    return render(request, 'blog/post_detail.html', {'post': post})
+    return render(request=request, template_name='blog/post_detail.html', context={'post': post})
 
 @login_required
 def post_new(request):
@@ -86,3 +88,21 @@ def comment_remove(request, pk):
     comment = get_object_or_404(Comment, pk=pk)
     comment.delete()
     return redirect('post_detail', pk=comment.post.pk)
+
+def validator(request):
+    form = BracketsValidatorForm()
+    status = 200
+    if request.method == "POST":
+        form = BracketsValidatorForm(request.POST)
+        if form.is_valid():
+            bracket_validator = BracketsValidator(form.cleaned_data.get('brackets'))
+            source_text = form.cleaned_data.get('text_to_validate').replace('\r', '')
+            validated_text = bracket_validator.validate(source_text)
+            form_data = {
+                'text_to_validate': validated_text,
+                'brackets': form.cleaned_data.get('brackets')
+            }
+            form = BracketsValidatorForm(initial=form_data)
+        else:
+            status = 400
+    return render(request, 'blog/validator.html', {'form': form}, status=status)
